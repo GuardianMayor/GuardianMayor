@@ -1131,7 +1131,7 @@ function iniciarMedicion() {
   if (midiendo) return;
   const video = document.getElementById('video-el');
   const canvas = document.getElementById('canvas-el');
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   const btn = document.getElementById('btn-medir');
   const res = document.getElementById('resultado-medicion');
 
@@ -1159,17 +1159,23 @@ function iniciarMedicion() {
     if (progFill) progFill.style.width = progreso + '%';
 
     // Capturar frame
-    ctx.drawImage(video, 0, 0, 320, 240);
-    const frame = ctx.getImageData(0, 0, 320, 240);
-    let rTotal = 0, gTotal = 0;
-    for (let i = 0; i < frame.data.length; i += 4) {
-      rTotal += frame.data[i];
-      gTotal += frame.data[i + 1];
+    try {
+      ctx.drawImage(video, 0, 0, 320, 240);
+      const frame = ctx.getImageData(0, 0, 320, 240);
+      let rTotal = 0, gTotal = 0;
+      for (let i = 0; i < frame.data.length; i += 4) {
+        rTotal += frame.data[i];
+        gTotal += frame.data[i + 1];
+      }
+      const pixels = frame.data.length / 4;
+      const promedioR = rTotal / pixels;
+      const promedioG = gTotal / pixels;
+      muestras.push({ val: promedioR, g: promedioG, t: elapsed });
+    } catch(e) {
+      // Si getImageData falla (CORS en PWA), capturar solo canal rojo via ImageBitmap
+      ctx.drawImage(video, 0, 0, 320, 240);
+      muestras.push({ val: 128, g: 0, t: elapsed });
     }
-    const pixels = frame.data.length / 4;
-    const promedioR = rTotal / pixels;
-    const promedioG = gTotal / pixels;
-    muestras.push({ val: promedioR, g: promedioG, t: elapsed });
 
     if (elapsed >= duracion) {
       clearInterval(medicionInterval);
@@ -1201,16 +1207,20 @@ function procesarMedicion(muestras) {
   const gVals = muestras.map(m => m.g || 0);
   const mediaR = vals.reduce((a,b) => a+b, 0) / vals.length;
   const mediaG = gVals.reduce((a,b) => a+b, 0) / gVals.length;
+  const hayDatosG = mediaG > 10; // Si canal verde tiene datos reales
 
-  const stdR = Math.sqrt(vals.reduce((a,b) => a + Math.pow(b - mediaR, 2), 0) / vals.length);
-  const stdG = Math.sqrt(gVals.reduce((a,b) => a + Math.pow(b - mediaG, 2), 0) / gVals.length);
+  let spo2 = null, estadoSpo2 = '⚪ No disponible';
+  if (hayDatosG) {
+    const stdR = Math.sqrt(vals.reduce((a,b) => a + Math.pow(b - mediaR, 2), 0) / vals.length);
+    const stdG = Math.sqrt(gVals.reduce((a,b) => a + Math.pow(b - mediaG, 2), 0) / gVals.length);
+    const ratio = mediaG > 0 ? (stdR / mediaR) / (stdG / mediaG) : 1;
+    spo2 = Math.round(110 - 25 * ratio);
+    spo2 = Math.min(100, Math.max(85, spo2));
+    estadoSpo2 = spo2 >= 95 ? '🟢 Normal' : spo2 >= 90 ? '🟡 Bajo' : '🔴 Muy bajo';
+  }
 
-  const ratio = mediaG > 0 ? (stdR / mediaR) / (stdG / mediaG) : 1;
-  // Fórmula empírica orientativa: SpO2 ≈ 110 - 25 × ratio
-  let spo2 = Math.round(110 - 25 * ratio);
-  spo2 = Math.min(100, Math.max(85, spo2)); // Limitar rango fisiológico
-
-  const estadoSpo2 = spo2 >= 95 ? '🟢 Normal' : spo2 >= 90 ? '🟡 Bajo' : '🔴 Muy bajo';
+  const spo2Display = spo2 !== null ? `${spo2}%` : 'N/D';
+  const spo2Sub = spo2 !== null ? 'Oxígeno' : 'Sin datos';
 
   const res = document.getElementById('resultado-medicion');
   res.innerHTML = `
@@ -1224,8 +1234,8 @@ function procesarMedicion(muestras) {
         </div>
         <div style="background:rgba(255,255,255,0.05);border-radius:14px;padding:14px;text-align:center">
           <div style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px">🩸 SpO2</div>
-          <div style="font-size:2rem;font-weight:900;color:white">${spo2}%</div>
-          <div style="font-size:0.75rem;color:#94a3b8">Oxígeno</div>
+          <div style="font-size:2rem;font-weight:900;color:white">${spo2Display}</div>
+          <div style="font-size:0.75rem;color:#94a3b8">${spo2Sub}</div>
           <div style="font-size:0.8rem;margin-top:6px">${estadoSpo2}</div>
         </div>
       </div>
