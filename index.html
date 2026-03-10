@@ -192,6 +192,7 @@
   .btn-secundario { background: rgba(255,255,255,0.1); color: white; }
   .btn-peligro { background: linear-gradient(135deg, var(--rojo-claro), var(--rojo)); color: white; }
   .btn-azul-btn { background: linear-gradient(135deg, var(--azul-claro), var(--azul-med)); color: white; }
+  .btn-verde-btn { background: linear-gradient(135deg, #25d366, #128c3e); color: white; }
 
   /* ── CHECKIN IA ── */
   .ia-burbuja {
@@ -1233,8 +1234,8 @@ function procesarMedicion(muestras) {
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:0">
-      <button class="btn-modal btn-primario" style="margin:0" onclick="compartirMedicionWhatsApp(${bpm}, ${spo2})">💬 WhatsApp</button>
-      <button class="btn-modal btn-azul-btn" style="margin:0" onclick="compartirMedicionEmail(${bpm}, ${spo2})">📧 Email</button>
+      <button class="btn-modal btn-verde-btn" style="margin-top:0" onclick="compartirMedicionWA(${bpm}, ${spo2})">💬 WhatsApp</button>
+      <button class="btn-modal btn-azul-btn" style="margin-top:0" onclick="compartirMedicionEmail(${bpm}, ${spo2})">📧 Email</button>
     </div>
   `;
 
@@ -1244,25 +1245,21 @@ function procesarMedicion(muestras) {
   btn.disabled = false;
 }
 
-function compartirMedicionWhatsApp(bpm, spo2) {
+function _mensajeMedicion(bpm, spo2) {
   const alertaBPM = bpm < 60 || bpm > 100 ? '⚠️ Pulso fuera de rango normal.' : '✅ Pulso normal.';
   const alertaSpo2 = spo2 < 95 ? '⚠️ Oxígeno bajo, considera consultar al médico.' : '✅ Oxígeno normal.';
-  const tipo = '📊 Reporte de salud';
-  const mensaje = `${config.nombre} realizó una medición:\n\n🫀 Pulso: ${bpm} BPM — ${alertaBPM}\n🩸 SpO2: ${spo2}% — ${alertaSpo2}\n\n⚠️ Estimación orientativa por cámara.`;
+  return `${config.nombre} realizó una medición:\n\n🫀 Pulso: ${bpm} BPM — ${alertaBPM}\n🩸 SpO2: ${spo2}% — ${alertaSpo2}\n\n⚠️ Estimación orientativa por cámara.`;
+}
+
+function compartirMedicionWA(bpm, spo2) {
+  const msg = _mensajeMedicion(bpm, spo2);
   const fecha = new Date().toLocaleString('es-MX');
-  const texto = encodeURIComponent(`${tipo}\n\n${mensaje}\n\n⏰ ${fecha}`);
-  const url = `https://wa.me/${config.whatsapp}?text=${texto}`;
-  window.open(url, '_blank');
-  mostrarToast('💬 WhatsApp abierto');
+  const texto = encodeURIComponent(`📊 Reporte de salud\n\n${msg}\n\n⏰ ${fecha}`);
+  window.open(`https://wa.me/${config.whatsapp}?text=${texto}`, '_blank');
 }
 
 function compartirMedicionEmail(bpm, spo2) {
-  const alertaBPM = bpm < 60 || bpm > 100 ? '⚠️ Pulso fuera de rango normal.' : '✅ Pulso normal.';
-  const alertaSpo2 = spo2 < 95 ? '⚠️ Oxígeno bajo, considera consultar al médico.' : '✅ Oxígeno normal.';
-  const tipo = '📊 Reporte de salud';
-  const mensaje = `${config.nombre} realizó una medición:\n\n🫀 Pulso: ${bpm} BPM — ${alertaBPM}\n🩸 SpO2: ${spo2}% — ${alertaSpo2}\n\n⚠️ Estimación orientativa por cámara.`;
-  enviarEmailAlerta(tipo, mensaje);
-  mostrarToast('📧 Enviando email...');
+  enviarEmailAlerta('📊 Reporte de salud', _mensajeMedicion(bpm, spo2));
 }
 
 async function cerrarCamara() {
